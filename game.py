@@ -1,123 +1,107 @@
 import pygame
-import random
 import sys
+import random
 
+# Initialize Pygame
 pygame.init()
 
-WIDTH = 800
-HEIGHT = 600
+# Constants
+WIDTH, HEIGHT = 600, 400
+GRID_SIZE = 20
+FPS = 10
 
-RED = (255,0,0)
-BLUE = (0,0,255)
-YELLOW = (255,255,0)
-BACKGROUND_COLOR = (0,0,0)
+# Colors
+WHITE = (255, 255, 255)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
 
-player_size = 50
-player_pos = [WIDTH/2, HEIGHT-2*player_size]
+# Snake class
+class Snake:
+    def __init__(self):
+        self.length = 1
+        self.positions = [((WIDTH // 2), (HEIGHT // 2))]
+        self.direction = random.choice([UP, DOWN, LEFT, RIGHT])
+        self.color = GREEN
 
-enemy_size = 50
-enemy_pos = [random.randint(0,WIDTH-enemy_size), 0]
-enemy_list = [enemy_pos]
+    def get_head_position(self):
+        return self.positions[0]
 
-SPEED = 10
+    def update(self):
+        cur = self.get_head_position()
+        x, y = self.direction
+        new = (((cur[0] + (x*GRID_SIZE)) % WIDTH), (cur[1] + (y*GRID_SIZE)) % HEIGHT)
+        if len(self.positions) > 2 and new in self.positions[2:]:
+            self.reset()
+        else:
+            self.positions.insert(0, new)
+            if len(self.positions) > self.length:
+                self.positions.pop()
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    def reset(self):
+        self.length = 1
+        self.positions = [((WIDTH // 2), (HEIGHT // 2))]
+        self.direction = random.choice([UP, DOWN, LEFT, RIGHT])
 
-game_over = False
+    def render(self, surface):
+        for p in self.positions:
+            pygame.draw.rect(surface, self.color, (p[0], p[1], GRID_SIZE, GRID_SIZE))
 
-score = 0
+# Fruit class
+class Fruit:
+    def __init__(self):
+        self.position = (0, 0)
+        self.color = RED
+        self.randomize_position()
 
-clock = pygame.time.Clock()
+    def randomize_position(self):
+        self.position = (random.randint(0, (WIDTH//GRID_SIZE)-1) * GRID_SIZE,
+                         random.randint(0, (HEIGHT//GRID_SIZE)-1) * GRID_SIZE)
 
-myFont = pygame.font.SysFont("monospace", 35)
+    def render(self, surface):
+        pygame.draw.rect(surface, self.color, (self.position[0], self.position[1], GRID_SIZE, GRID_SIZE))
 
-def set_level(score, SPEED):
-	if score < 20:
-		SPEED = 5
-	elif score < 40:
-		SPEED = 8
-	elif score < 60:
-		SPEED = 12
-	else:
-		SPEED = 15
-	return SPEED
-	# SPEED = score/5 + 1
+# Direction vectors
+UP = (0, -1)
+DOWN = (0, 1)
+LEFT = (-1, 0)
+RIGHT = (1, 0)
 
+# Main function
+def main():
+    clock = pygame.time.Clock()
+    screen = pygame.display.set_mode((WIDTH, HEIGHT), 0, 32)
+    surface = pygame.Surface(screen.get_size())
+    surface = surface.convert()
 
-def drop_enemies(enemy_list):
-	delay = random.random()
-	if len(enemy_list) < 10 and delay < 0.1:
-		x_pos = random.randint(0,WIDTH-enemy_size)
-		y_pos = 0
-		enemy_list.append([x_pos, y_pos])
+    snake = Snake()
+    fruit = Fruit()
 
-def draw_enemies(enemy_list):
-	for enemy_pos in enemy_list:
-		pygame.draw.rect(screen, BLUE, (enemy_pos[0], enemy_pos[1], enemy_size, enemy_size))
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    snake.direction = UP
+                elif event.key == pygame.K_DOWN:
+                    snake.direction = DOWN
+                elif event.key == pygame.K_LEFT:
+                    snake.direction = LEFT
+                elif event.key == pygame.K_RIGHT:
+                    snake.direction = RIGHT
 
-def update_enemy_positions(enemy_list, score):
-	for idx, enemy_pos in enumerate(enemy_list):
-		if enemy_pos[1] >= 0 and enemy_pos[1] < HEIGHT:
-			enemy_pos[1] += SPEED
-		else:
-			enemy_list.pop(idx)
-			score += 1
-	return score
+        snake.update()
+        if snake.get_head_position() == fruit.position:
+            snake.length += 1
+            fruit.randomize_position()
 
-def collision_check(enemy_list, player_pos):
-	for enemy_pos in enemy_list:
-		if detect_collision(enemy_pos, player_pos):
-			return True
-	return False
+        surface.fill(WHITE)
+        snake.render(surface)
+        fruit.render(surface)
+        screen.blit(surface, (0, 0))
+        pygame.display.update()
+        clock.tick(FPS)
 
-def detect_collision(player_pos, enemy_pos):
-	p_x = player_pos[0]
-	p_y = player_pos[1]
-
-	e_x = enemy_pos[0]
-	e_y = enemy_pos[1]
-
-	if (e_x >= p_x and e_x < (p_x + player_size)) or (p_x >= e_x and p_x < (e_x+enemy_size)):
-		if (e_y >= p_y and e_y < (p_y + player_size)) or (p_y >= e_y and p_y < (e_y+enemy_size)):
-			return True
-	return False
-
-while not game_over:
-
-	for event in pygame.event.get():
-		if event.type == pygame.QUIT:
-			sys.exit()
-
-		if event.type == pygame.KEYDOWN:
-
-			x = player_pos[0]
-			y = player_pos[1]
-
-			if event.key == pygame.K_LEFT:
-				x -= player_size
-			elif event.key == pygame.K_RIGHT:
-				x += player_size
-
-			player_pos = [x,y]
-
-	screen.fill(BACKGROUND_COLOR)
-
-	drop_enemies(enemy_list)
-	score = update_enemy_positions(enemy_list, score)
-	SPEED = set_level(score, SPEED)
-
-	text = "Score:" + str(score)
-	label = myFont.render(text, 1, YELLOW)
-	screen.blit(label, (WIDTH-200, HEIGHT-40))
-
-	if collision_check(enemy_list, player_pos):
-		game_over = True
-		break
-
-	draw_enemies(enemy_list)
-
-	pygame.draw.rect(screen, RED, (player_pos[0], player_pos[1], player_size, player_size))
-
-	clock.tick(30)
-
-	pygame.display.update()
+if __name__ == "__main__":
+    main()
